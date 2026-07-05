@@ -26,7 +26,14 @@
   #keysHud { font-size: 14px; margin-top: 3px; opacity: .95; }
   #hint { font-size: 12px; opacity: .7; max-width: 44%; text-align: right; }
 
-  #stickZone { position: fixed; left: 0; bottom: 0; width: 55%; height: 60%; z-index: 6; }
+  #stickZone { display: none; }
+  #dpad { position: fixed; left: 22px; bottom: 30px; z-index: 6; display: grid; grid-template-columns: repeat(3, 62px); grid-template-rows: repeat(3, 62px); gap: 6px; }
+  .dbtn { display: flex; align-items: center; justify-content: center; font-size: 26px; color: #fff; background: radial-gradient(circle at 35% 30%, #6a6a8a, #34344a); border: 2px solid #ffffff44; border-radius: 14px; user-select: none; box-shadow: 0 0 12px #0006; }
+  .dbtn:active { transform: scale(.92); background: radial-gradient(circle at 35% 30%, #8a8ab0, #4a4a66); }
+  #btnU { grid-column: 2; grid-row: 1; }
+  #btnL { grid-column: 1; grid-row: 2; }
+  #btnR { grid-column: 3; grid-row: 2; }
+  #btnD { grid-column: 2; grid-row: 3; }
   #stickBase { position: absolute; width: 130px; height: 130px; border-radius: 50%; border: 2px solid rgba(255,255,255,.28); background: radial-gradient(circle, rgba(255,255,255,.06), rgba(255,255,255,.02)); transform: translate(-50%, -50%); display: none; }
   #stickKnob { position: absolute; width: 62px; height: 62px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff4b0, #ffcf33); box-shadow: 0 0 22px #ffcf3399; transform: translate(-50%, -50%); display: none; }
 
@@ -137,7 +144,13 @@
 <div id="timerHud"></div>
 
 <div id="stickZone"><div id="stickBase"></div><div id="stickKnob"></div></div>
-<div id="jumpBtn">⬆️<small>ПРЫЖОК</small></div>
+<div id="dpad">
+  <div id="btnU" class="dbtn">▲</div>
+  <div id="btnL" class="dbtn">◀</div>
+  <div id="btnR" class="dbtn">▶</div>
+  <div id="btnD" class="dbtn">▼</div>
+</div>
+<div id="jumpBtn">🦘<small>ПРЫЖОК</small></div>
 <div id="pushBtn">👊<small>ТОЛЧОК</small></div>
 <div id="bagBtn">🎒<small>ИНВЕНТАРЬ</small></div>
 <div id="changeBtn">🎨<small>ЖУЧОК</small></div>
@@ -585,15 +598,26 @@ addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 let throttle = 0, turn = 0;
 function readControls() {
   let th = 0, tu = 0;
-  if (keys['arrowup'] || keys['w']) th += 1;
-  if (keys['arrowdown'] || keys['s']) th -= 1;
-  if (keys['arrowleft'] || keys['a']) tu -= 1;
-  if (keys['arrowright'] || keys['d']) tu += 1;
+  if (keys['arrowup'] || keys['w'] || dU) th += 1;
+  if (keys['arrowdown'] || keys['s'] || dD) th -= 1;
+  if (keys['arrowleft'] || keys['a'] || dL) tu -= 1;
+  if (keys['arrowright'] || keys['d'] || dR) tu += 1;
   th += -move.y; tu += move.x;
   throttle = Math.max(-1, Math.min(1, th)); turn = Math.max(-1, Math.min(1, tu));
 }
 document.getElementById('pushBtn').addEventListener('pointerdown', doPush);
 document.getElementById('jumpBtn').addEventListener('pointerdown', e => { e.preventDefault(); doJump(); });
+let dU = false, dD = false, dL = false, dR = false;
+function bindHold(id, on, off) {
+  const el = document.getElementById(id);
+  el.addEventListener('pointerdown', e => { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (_) {} on(); });
+  el.addEventListener('pointerup', () => off());
+  el.addEventListener('pointercancel', () => off());
+}
+bindHold('btnU', () => dU = true, () => dU = false);
+bindHold('btnD', () => dD = true, () => dD = false);
+bindHold('btnL', () => dL = true, () => dL = false);
+bindHold('btnR', () => dR = true, () => dR = false);
 const raycaster = new THREE.Raycaster();
 function tryClickFly(clientX, clientY) {
   if (state !== 'play' || !player) return;
@@ -608,7 +632,7 @@ function tryClickFly(clientX, clientY) {
   if (dist(player.userData.x, player.userData.z, f.mesh.position.x, f.mesh.position.z) > FLY_REACH) { showToast('Подойди ближе к мухе 🪰'); return; }
   collectFly(f);
 }
-window.addEventListener('pointerdown', e => { if (e.target && e.target.closest && e.target.closest('#pushBtn,#jumpBtn,#bagBtn,#inv,#changeBtn,#pickOverlay,#cornerBtns,#achOverlay')) return; tryClickFly(e.clientX, e.clientY); });
+window.addEventListener('pointerdown', e => { if (e.target && e.target.closest && e.target.closest('#pushBtn,#jumpBtn,#dpad,#bagBtn,#inv,#changeBtn,#pickOverlay,#cornerBtns,#achOverlay')) return; tryClickFly(e.clientX, e.clientY); });
 
 // ---- Инвентарь (рюкзак) ----
 const invEl = document.getElementById('inv');
