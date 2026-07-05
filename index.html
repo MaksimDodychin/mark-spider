@@ -148,7 +148,7 @@
     <button class="btn invBtn" id="pickClose">Закрыть</button>
   </div>
 </div>
-<div id="cornerBtns"><div id="saveBtn" class="cornerBtn">💾</div><div id="achBtn" class="cornerBtn">🏆</div></div>
+<div id="cornerBtns"><div id="fsBtn" class="cornerBtn">⛶</div><div id="saveBtn" class="cornerBtn">💾</div><div id="achBtn" class="cornerBtn">🏆</div></div>
 <div id="achOverlay" class="screen">
   <div class="invBox">
     <div class="invTitle">🏆 Достижения</div>
@@ -1276,6 +1276,10 @@ function renderAch() {
 document.getElementById('saveBtn').addEventListener('click', () => saveGame());
 document.getElementById('achBtn').addEventListener('click', () => { renderAch(); document.getElementById('achOverlay').style.display = 'flex'; });
 document.getElementById('achClose').addEventListener('click', () => document.getElementById('achOverlay').style.display = 'none');
+function goFullscreen() { const el = document.documentElement; const rf = el.requestFullscreen || el.webkitRequestFullscreen; if (rf && !document.fullscreenElement) { try { const p = rf.call(el); if (p && p.catch) p.catch(() => {}); } catch (e) {} } }
+function toggleFullscreen() { if (document.fullscreenElement) { const ex = document.exitFullscreen || document.webkitExitFullscreen; if (ex) { try { ex.call(document); } catch (e) {} } } else goFullscreen(); }
+document.getElementById('fsBtn').addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 function changeInsect() {
   const s = player ? { x: player.userData.x, z: player.userData.z, heading: player.userData.heading, y: player.userData.y || 0, vy: player.userData.vy || 0, grounded: player.userData.grounded, keys: player.userData.keys, hasPlank: player.userData.hasPlank } : null;
   ensurePlayer();
@@ -1283,7 +1287,7 @@ function changeInsect() {
 }
 document.getElementById('changeBtn').addEventListener('click', () => { buildSwatches(document.getElementById('pickGrid'), changeInsect); document.getElementById('pickOverlay').style.display = 'flex'; });
 document.getElementById('pickClose').addEventListener('click', () => document.getElementById('pickOverlay').style.display = 'none');
-document.getElementById('startBtn').addEventListener('click', () => { initAudio(); if (actx && actx.state === 'suspended') actx.resume(); document.getElementById('startScreen').style.display = 'none'; document.getElementById('changeBtn').style.display = 'flex'; unlockedChapters = 1; savedChapter = -1; currentChapter = 0; ensurePlayer(); enterLobby(); });
+document.getElementById('startBtn').addEventListener('click', () => { initAudio(); if (actx && actx.state === 'suspended') actx.resume(); goFullscreen(); document.getElementById('startScreen').style.display = 'none'; document.getElementById('changeBtn').style.display = 'flex'; unlockedChapters = 1; savedChapter = -1; currentChapter = 0; ensurePlayer(); enterLobby(); });
 document.getElementById('againBtn').addEventListener('click', () => { document.getElementById('win').style.display = 'none'; unlockedChapters = Math.min(CHAPTERS.length, Math.max(unlockedChapters, currentChapter + 2)); savedChapter = -1; saveGame(true); enterLobby(); });
 addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 </script>
