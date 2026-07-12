@@ -234,19 +234,23 @@ const PALETTE = [
 let selectedColor = PALETTE[0].hex, selectedTheme = PALETTE[0].theme;
 let achievements = new Set(), goldenUnlocked = false, spiderModeUnlocked = false;
 let spiderPrey = [], spiderCaught = 0, spiderTotal = 0;
+let spiderEscaped = 0, spiderTimer = 0, spiderFlies = [], spiderFlySpawnT = 0, spiderExit = null;
 const ACHIEVEMENTS = [
   { id: 'fly1', name: 'Первая муха' }, { id: 'key', name: 'Открыл дверь ключом' }, { id: 'bridge', name: 'Построил мост' },
   { id: 'timer', name: 'Успел в ворота' }, { id: 'push', name: 'Толкнул жучка' }, { id: 'bonus', name: 'Бонус-муха за дверью' },
   { id: 'ch1', name: 'Прошёл Главу 1' }, { id: 'ch2', name: 'Прошёл Главу 2' }, { id: 'ch3', name: 'Прошёл Главу 3' },
+  // секретное — не нужно для открытия золотого богомола
+  { id: 'goldbelly', name: 'Позолоченное брюхо', secret: true },
 ];
+const ACH_BASE = ACHIEVEMENTS.filter(a => !a.secret);
 const SAVE_KEY = 'spiderMaze_v1';
 function saveGame(quiet) { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ unlockedChapters, selectedColor, selectedTheme, ach: [...achievements], golden: goldenUnlocked, spider: spiderModeUnlocked })); if (!quiet) showToast('💾 Сохранено!'); } catch (e) {} }
 function loadGame() { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (!s) return; unlockedChapters = s.unlockedChapters || 1; if (s.selectedColor) selectedColor = s.selectedColor; if (s.selectedTheme) selectedTheme = s.selectedTheme; achievements = new Set(s.ach || []); goldenUnlocked = !!s.golden; spiderModeUnlocked = !!s.spider; } catch (e) {} }
 function unlockAch(id) {
   if (achievements.has(id)) return;
   const a = ACHIEVEMENTS.find(x => x.id === id); if (!a) return;
-  achievements.add(id); showToast('🏆 Достижение: ' + a.name);
-  if (achievements.size >= ACHIEVEMENTS.length && !goldenUnlocked) { goldenUnlocked = true; setTimeout(() => showToast('🏅 Открыт ЗОЛОТОЙ БОГОМОЛ! Жми 🎨'), 1400); }
+  achievements.add(id); showToast('🏆 Достижение: ' + (a.secret ? '🌟 ' : '') + a.name);
+  if (ACH_BASE.every(x => achievements.has(x.id)) && !goldenUnlocked) { goldenUnlocked = true; setTimeout(() => showToast('🏅 Открыт ЗОЛОТОЙ БОГОМОЛ! Жми 🎨'), 1400); }
   saveGame(true);
 }
 
@@ -369,8 +373,9 @@ function makeBeetle(bodyColor, isFirefly, theme) {
     const bk = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: .5 });
     for (const [sx, sz] of [[-0.3, 0.25], [0.3, 0.25], [-0.32, -0.35], [0.32, -0.35], [0, -0.7]]) { const sp = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 10), bk); sp.scale.set(1, 0.4, 1); sp.position.set(sx, 0.52, sz); grp.add(sp); }
   } else if (theme === 'bee') {
+    // полоски — кольца ВОКРУГ брюшка (чуть шире тела, видно сверху и с боков)
     const bk = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: .6 });
-    for (const zz of [0.4, 0.0, -0.4]) { const st = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.55, 0.16), bk); st.position.set(0, 0.15, zz); grp.add(st); }
+    for (const zz of [0.45, -0.05, -0.55]) { const st = new THREE.Mesh(new THREE.SphereGeometry(0.63, 18, 16), bk); st.scale.set(1.03, 0.75, 0.16); st.position.set(0, 0.15, zz); grp.add(st); }
     for (const ex of [-1, 1]) { const w = new THREE.Mesh(new THREE.SphereGeometry(0.42, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .45 })); w.scale.set(0.5, 0.1, 0.85); w.position.set(ex * 0.5, 0.55, 0.05); grp.add(w); }
   } else if (theme === 'moth') {
     const wm = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: .85, side: THREE.DoubleSide, transparent: true, opacity: .9 });
@@ -937,17 +942,32 @@ function buildSpiderMode() {
   player.userData.x = sp.x; player.userData.z = sp.z; player.userData.heading = 0; player.userData.y = 0; player.userData.vy = 0; player.userData.grounded = true; player.position.set(sp.x, 0, sp.z);
   spiderPrey = []; const cols = [0xd63b3b, 0x3b7cd6, 0xc94ed6, 0xe0902a, 0x2ec6b0, 0x2f9e3a];
   const preyCells = pickSpread(floorCells, 6, [startCell], 3);
-  for (let i = 0; i < 6; i++) { const b = makeBeetle(cols[i % cols.length], false); const cc = preyCells[i] || floorCells[i + 1]; const p = cellCenter(cc.r, cc.c); b.userData.x = p.x; b.userData.z = p.z; b.userData.heading = 0; b.userData.wander = null; b.userData.speed = BOT_SPEED * 0.8; b.userData.y = 0; b.userData.vy = 0; b.userData.grounded = true; b.userData.jumpT = Math.random(); b.userData.caught = false; worldGroup.add(b); spiderPrey.push(b); }
-  spiderCaught = 0; spiderTotal = 6;
+  for (let i = 0; i < 6; i++) { const b = makeBeetle(cols[i % cols.length], false); const cc = preyCells[i] || floorCells[i + 1]; const p = cellCenter(cc.r, cc.c); b.userData.x = p.x; b.userData.z = p.z; b.userData.heading = 0; b.userData.wander = null; b.userData.speed = BOT_SPEED * 0.8; b.userData.y = 0; b.userData.vy = 0; b.userData.grounded = true; b.userData.jumpT = Math.random(); b.userData.caught = false; b.userData.escaped = false; b.userData.flies = 0; b.userData.hideT = 0; b.userData.hideCd = 0; b.userData.flyTgt = null; worldGroup.add(b); spiderPrey.push(b); }
+  spiderCaught = 0; spiderTotal = 6; spiderEscaped = 0; spiderTimer = 300; spiderFlySpawnT = 8;
+  // 🪰 мухи на столиках — жучки собирают их (3 мухи = можно сбежать)
+  spiderFlies = [];
+  const flyCells = pickSpread(floorCells, 10, [startCell], 2);
+  for (const fc of flyCells) addSpiderFly(fc);
+  // 🟢 безопасные зоны — жучок прячется, паук не достаёт (но не дольше 5 секунд)
+  const szCells = pickSpread(floorCells, 2, [startCell], 5);
+  for (const sc of szCells) { const pad = makeSafePad(); const p = cellCenter(sc.r, sc.c); pad.position.set(p.x, 0, p.z); worldGroup.add(pad); safeZones.push({ x: p.x, z: p.z }); }
+  // 🚪 выход — самая дальняя клетка от старта паука
+  const exitCell = floorCells.reduce((a, b2) => ((Math.abs(b2.r - startCell.r) + Math.abs(b2.c - startCell.c)) > (Math.abs(a.r - startCell.r) + Math.abs(a.c - startCell.c)) ? b2 : a));
+  const ep = cellCenter(exitCell.r, exitCell.c);
+  spiderExit = { x: ep.x, z: ep.z, r: exitCell.r, c: exitCell.c };
+  const exDisc = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 0.12, 20), new THREE.MeshStandardMaterial({ color: 0x7bff9b, emissive: 0x33ff66, emissiveIntensity: .8, transparent: true, opacity: .55 })); exDisc.position.set(ep.x, 0.07, ep.z); worldGroup.add(exDisc);
+  { const spr = makeTextSprite(); const cv = spr.userData.cv, g2 = cv.getContext('2d'); g2.clearRect(0, 0, cv.width, cv.height); g2.fillStyle = 'rgba(8,26,14,0.72)'; g2.fillRect(6, 24, 244, 80); g2.strokeStyle = '#33ff66'; g2.lineWidth = 5; g2.strokeRect(6, 24, 244, 80); g2.font = 'bold 44px sans-serif'; g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.fillStyle = '#7bff9b'; g2.fillText('🚪 ВЫХОД', 128, 66); spr.userData.tex.needsUpdate = true; spr.position.set(ep.x, 4.4, ep.z); worldGroup.add(spr); }
   showMazeWorld(); scene.background = DARK_BG; scene.fog = DARK_FOG;
   document.getElementById('chapter').textContent = 'За паука 🕷️';
   document.getElementById('flyTotal').textContent = spiderTotal; document.getElementById('flyCount').textContent = 0;
-  document.getElementById('hint').textContent = 'Ты паук! Лови жуков-игроков. Поймано 0 / ' + spiderTotal;
-  document.getElementById('keysHud').textContent = '';
+  document.getElementById('hint').textContent = 'Ты паук! У тебя 5 минут: лови жуков — они собирают мух 🪰 и бегут к выходу 🚪';
+  document.getElementById('keysHud').textContent = '⏱ 5:00';
   dangerLevel = 0; document.getElementById('danger').style.opacity = 0;
   graceT = 1.0; state = 'spider';
 }
+function addSpiderFly(fc) { const f = makeFly(); const p = cellCenter(fc.r, fc.c); f.position.set(p.x, 0, p.z); worldGroup.add(f); spiderFlies.push({ mesh: f, x: p.x, z: p.z, taken: false }); }
 function exitSpiderMode() { ensurePlayer(); enterLobby(); }
+function endSpiderMode(msg) { if (state !== 'spider') return; state = 'spiderdone'; showToast(msg); setTimeout(exitSpiderMode, 2600); }
 
 // ---- Играбельная концовка-полянка (Глава 1) ----
 function makeFlower(hex) {
@@ -1035,7 +1055,7 @@ function stepTarget(e, tr, tc) {
   const cell = cellOf(e.userData.x, e.userData.z);
   if (isBlocked(cell.r, cell.c) || !Number.isFinite(tr) || !Number.isFinite(tc)) return new THREE.Vector3(e.userData.x, 0, e.userData.z);
   const path = bfsPath(cell.r, cell.c, tr, tc);
-  if (path.length >= 2) { const n = path[1]; return cellCenter(n.r, n.c); }
+  if (path.length >= 2) { const n = path[1]; return cellCenter(n[0], n[1]); } // шаг пути = [r, c]
   return cellCenter(tr, tc);
 }
 function sanitize(e) { if (!e || !e.userData) return; if (!Number.isFinite(e.userData.x) || !Number.isFinite(e.userData.z)) { const rc = randFloorCell(); const p = cellCenter(rc.r, rc.c); e.userData.x = p.x; e.userData.z = p.z; e.userData.y = 0; e.userData.vy = 0; } }
@@ -1080,6 +1100,7 @@ function playEnding() {
 function showWin() {
   const last = currentChapter >= CHAPTERS.length - 1;
   unlockAch('ch' + (currentChapter + 1));
+  if (selectedTheme === 'goldmantis') unlockAch('goldbelly'); // 🌟 секрет: глава пройдена за золотого богомола
   if (last && !spiderModeUnlocked) { spiderModeUnlocked = true; saveGame(true); }
   const t = document.getElementById('winTitle'), s = document.getElementById('winSub'), b = document.getElementById('againBtn');
   if (last) { t.textContent = '🏆 ТЫ ПРОШЁЛ ВСЮ ИГРУ!'; s.innerHTML = 'Три главы позади — ты чемпион! 🕷️<br>В лобби открылась дверь <b>«За паука»</b> 🕷️ — лови жуков!'; b.textContent = 'В ЛОББИ'; }
@@ -1256,23 +1277,72 @@ function tick() {
     readControls();
     movePlayer(dt, isFree);
     const px = player.userData.x, pz = player.userData.z;
+    // ⏱ таймер: 5 минут на охоту
+    spiderTimer -= dt;
+    { const tl = Math.max(0, spiderTimer); document.getElementById('keysHud').textContent = '⏱ ' + Math.floor(tl / 60) + ':' + String(Math.floor(tl % 60)).padStart(2, '0') + (spiderEscaped ? ' · 🚪 сбежало ' + spiderEscaped : ''); }
+    // 🪰 новые мухи взамен собранных
+    spiderFlySpawnT -= dt;
+    if (spiderFlySpawnT <= 0) { spiderFlySpawnT = 8; if (spiderFlies.filter(f => !f.taken).length < 6) addSpiderFly(randFloorCell()); }
     for (const b of spiderPrey) {
-      if (b.userData.caught) continue;
-      const dsp = dist(px, pz, b.userData.x, b.userData.z);
-      let mvx, mvz;
-      if (dsp < 15) { mvx = b.userData.x - px; mvz = b.userData.z - pz; b.userData.wander = null; b.userData.jumpT -= dt; if (b.userData.grounded && b.userData.jumpT <= 0) { b.userData.vy = JUMP_V * 0.9; b.userData.grounded = false; b.userData.jumpT = 0.5 + Math.random() * 0.5; } }
-      else { if (!b.userData.wander || dist(b.userData.x, b.userData.z, b.userData.wander.x, b.userData.wander.z) < 1.5) { const rc = randFloorCell(); b.userData.wander = cellCenter(rc.r, rc.c); b.userData.wtarget = rc; } const tgt = stepTarget(b, b.userData.wtarget.r, b.userData.wtarget.c); mvx = tgt.x - b.userData.x; mvz = tgt.z - b.userData.z; }
-      moveEntity(b, mvx, mvz, dsp < 15 ? b.userData.speed * 1.1 : b.userData.speed, dt);
-      b.userData.vy -= GRAV * dt; b.userData.y = Math.max(0, b.userData.y + b.userData.vy * dt); if (b.userData.y <= 0) b.userData.vy = 0;
-      b.position.set(b.userData.x, b.userData.y, b.userData.z); b.rotation.y = b.userData.heading; animateLegs(b, true, now + b.id);
-      if (graceT <= 0 && dist(px, pz, b.userData.x, b.userData.z) < 2.2) { b.userData.caught = true; b.visible = false; spiderCaught++; document.getElementById('flyCount').textContent = spiderCaught; document.getElementById('hint').textContent = 'Поймано ' + spiderCaught + ' / ' + spiderTotal; thump(0.3); scream(1); }
+      if (b.userData.caught || b.userData.escaped) continue;
+      sanitize(b);
+      const bu = b.userData;
+      const dsp = dist(px, pz, bu.x, bu.z);
+      const inZone = inSafeZone(bu.x, bu.z);
+      bu.hideCd = Math.max(0, bu.hideCd - dt);
+      let mvx = 0, mvz = 0;
+      const danger = dsp < 12;
+      // ближайшая безопасная зона (если не «отдыхает» после укрытия)
+      let zoneTgt = null;
+      if (danger && bu.hideCd <= 0 && !inZone) { let best = null, bd = 1e9; for (const s of safeZones) { const d2 = dist(bu.x, bu.z, s.x, s.z); if (d2 < bd) { bd = d2; best = s; } } if (best && bd < 13 && bd < dsp * 1.6) zoneTgt = best; }
+      if (inZone && danger && bu.hideCd <= 0) {
+        // 🟢 прячется в зоне: стоит смирно, паук не достаёт (но макс. 5 секунд)
+        bu.hideT += dt;
+        if (bu.hideT >= 5) { bu.hideCd = 7; bu.hideT = 0; }
+      } else if (zoneTgt) {
+        // бежит прятаться
+        const zc = cellOf(zoneTgt.x, zoneTgt.z); const tgt = stepTarget(b, zc.r, zc.c); mvx = tgt.x - bu.x; mvz = tgt.z - bu.z;
+      } else if (danger) {
+        // просто удирает прыжками
+        bu.hideT = 0; mvx = bu.x - px; mvz = bu.z - pz;
+        bu.jumpT -= dt; if (bu.grounded && bu.jumpT <= 0) { bu.vy = JUMP_V * 0.9; bu.grounded = false; bu.jumpT = 0.5 + Math.random() * 0.5; }
+      } else if (bu.flies >= 3) {
+        // 🚪 собрал 3 мухи — бежит к выходу!
+        bu.hideT = 0;
+        const tgt = stepTarget(b, spiderExit.r, spiderExit.c); mvx = tgt.x - bu.x; mvz = tgt.z - bu.z;
+      } else {
+        // 🪰 идёт за ближайшей мухой (или гуляет, если мух нет)
+        bu.hideT = 0;
+        if (!bu.flyTgt || bu.flyTgt.taken) { let best = null, bd = 1e9; for (const f of spiderFlies) { if (f.taken) continue; const d2 = dist(bu.x, bu.z, f.x, f.z); if (d2 < bd) { bd = d2; best = f; } } bu.flyTgt = best; }
+        if (bu.flyTgt) { const fc2 = cellOf(bu.flyTgt.x, bu.flyTgt.z); const tgt = stepTarget(b, fc2.r, fc2.c); mvx = tgt.x - bu.x; mvz = tgt.z - bu.z; }
+        else { if (!bu.wander || dist(bu.x, bu.z, bu.wander.x, bu.wander.z) < 1.5) { const rc = randFloorCell(); bu.wander = cellCenter(rc.r, rc.c); bu.wtarget = rc; } const tgt = stepTarget(b, bu.wtarget.r, bu.wtarget.c); mvx = tgt.x - bu.x; mvz = tgt.z - bu.z; }
+      }
+      moveEntity(b, mvx, mvz, danger ? bu.speed * 1.1 : bu.speed, dt);
+      // подобрал муху со столика
+      if (bu.flyTgt && !bu.flyTgt.taken && dist(bu.x, bu.z, bu.flyTgt.x, bu.flyTgt.z) < 1.7) { bu.flyTgt.taken = true; worldGroup.remove(bu.flyTgt.mesh); bu.flyTgt = null; bu.flies++; if (bu.flies >= 3) showToast('🪰 Жучок собрал 3 мухи и бежит к выходу!'); }
+      // сбежал через выход
+      if (bu.flies >= 3 && dist(bu.x, bu.z, spiderExit.x, spiderExit.z) < 2.2) { bu.escaped = true; b.visible = false; spiderEscaped++; showToast('🚪 Жучок сбежал из лабиринта!'); thump(0.2); continue; }
+      bu.vy -= GRAV * dt; bu.y = Math.max(0, bu.y + bu.vy * dt); if (bu.y <= 0) bu.vy = 0;
+      b.position.set(bu.x, bu.y, bu.z); b.rotation.y = bu.heading; animateLegs(b, true, now + b.id);
+      if (graceT <= 0 && !inZone && dist(px, pz, bu.x, bu.z) < 2.2) { bu.caught = true; b.visible = false; spiderCaught++; document.getElementById('flyCount').textContent = spiderCaught; document.getElementById('hint').textContent = 'Поймано ' + spiderCaught + ' / ' + spiderTotal; thump(0.3); scream(1); }
     }
-    if (spiderCaught >= spiderTotal) { state = 'spiderdone'; showToast('🕷️ Всех поймал! Победа!'); setTimeout(exitSpiderMode, 1200); }
+    if (spiderCaught >= spiderTotal) endSpiderMode('🕷️ Всех поймал! Победа!');
+    else if (spiderCaught + spiderEscaped >= spiderTotal) endSpiderMode('🚪 Жучки сбежали! Поймано ' + spiderCaught + ' из ' + spiderTotal);
+    else if (spiderTimer <= 0) endSpiderMode('⏱ Время вышло! Поймано ' + spiderCaught + ' из ' + spiderTotal + (spiderEscaped ? ', сбежало ' + spiderEscaped : ''));
     updateCamera(dt);
   }
   renderer.render(scene, camera);
 }
 tick();
+
+// отладочный хук для автотестов (игре не мешает)
+window.__dbg = {
+  goSpider() { spiderModeUnlocked = true; buildSpiderMode(); },
+  goClearing() { currentChapter = 0; enterClearing3d(); },
+  setSpiderTimer(s) { spiderTimer = s; },
+  snap() { return { state, spiderCaught, spiderEscaped, spiderTimer: Math.round(spiderTimer), fliesAlive: spiderFlies.filter(f => !f.taken).length, safeZones: safeZones.length, exit: !!spiderExit, prey: spiderPrey.map(b => ({ flies: b.userData.flies, caught: b.userData.caught, escaped: b.userData.escaped })) }; },
+  detail() { const px = player.userData.x, pz = player.userData.z; return spiderPrey.map(b => { const bu = b.userData; return { x: Math.round(bu.x), z: Math.round(bu.z), dsp: Math.round(dist(px, pz, bu.x, bu.z)), fl: bu.flies, tgt: bu.flyTgt ? Math.round(dist(bu.x, bu.z, bu.flyTgt.x, bu.flyTgt.z)) : null, zone: inSafeZone(bu.x, bu.z), cd: Math.round(bu.hideCd * 10) / 10 }; }); },
+};
 
 // ==========================================================================
 //  ЭКРАНЫ
@@ -1294,8 +1364,12 @@ loadGame();
 buildSwatches(document.getElementById('colorPick'));
 function renderAch() {
   const box = document.getElementById('achList'); box.innerHTML = '';
-  for (const a of ACHIEVEMENTS) { const d = document.createElement('div'); d.className = 'achItem'; d.textContent = (achievements.has(a.id) ? '✅ ' : '🔒 ') + a.name; d.style.opacity = achievements.has(a.id) ? '1' : '0.55'; box.appendChild(d); }
-  const g = document.createElement('div'); g.className = 'achItem'; g.style.marginTop = '10px'; g.style.color = '#ffd23b'; g.textContent = goldenUnlocked ? '🏅 Золотой богомол ОТКРЫТ!' : ('🏅 Собери все (' + achievements.size + '/' + ACHIEVEMENTS.length + ') → Золотой богомол'); box.appendChild(g);
+  for (const a of ACHIEVEMENTS) { const d = document.createElement('div'); d.className = 'achItem'; const has = achievements.has(a.id);
+    if (a.secret && !has) { d.textContent = '❓ Секретное достижение… 🤫'; d.style.opacity = '0.55'; }
+    else { d.textContent = (has ? '✅ ' : '🔒 ') + (a.secret ? '🌟 ' : '') + a.name; d.style.opacity = has ? '1' : '0.55'; }
+    box.appendChild(d); }
+  const baseDone = ACH_BASE.filter(a => achievements.has(a.id)).length;
+  const g = document.createElement('div'); g.className = 'achItem'; g.style.marginTop = '10px'; g.style.color = '#ffd23b'; g.textContent = goldenUnlocked ? '🏅 Золотой богомол ОТКРЫТ!' : ('🏅 Собери все (' + baseDone + '/' + ACH_BASE.length + ') → Золотой богомол'); box.appendChild(g);
 }
 document.getElementById('saveBtn').addEventListener('click', () => saveGame());
 document.getElementById('achBtn').addEventListener('click', () => { renderAch(); document.getElementById('achOverlay').style.display = 'flex'; });
