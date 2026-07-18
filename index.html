@@ -224,17 +224,17 @@ const DETECT = 15, DANGER = 16, CATCH = 1.7, FLY_REACH = 6.5;
 const JUMP_V = 8.0, GRAV = 22;
 const CEIL_H = 13;   // потолок над лабиринтом (выше камеры)
 const KEY_COLORS = [{ name: 'красный', hex: 0xff3b3b }, { name: 'жёлтый', hex: 0xffd43b }, { name: 'голубой', hex: 0x33d0ff }];
+// порядок — ПО РАДУГЕ (заказ Марка 18.07.2026): от красного к фиолетовому, золотой богомол — в конце
 const PALETTE = [
-  { n: 'Божья коровка', hex: 0xd63b3b, theme: 'ladybug', emoji: '🐞' },
-  { n: 'Пчела', hex: 0xf5c518, theme: 'bee', emoji: '🐝' },
-  { n: 'Кузнечик', hex: 0x3fae3a, theme: 'grasshopper', emoji: '🦗' },
-  { n: 'Жук-олень', hex: 0x2f6fe0, theme: 'stag', emoji: '🪲' },
-  { n: 'Мотылёк', hex: 0xa24ed6, theme: 'moth', emoji: '🦋' },
-  // новые жучки (заказ Марка 18.07.2026)
-  { n: 'Стрекоза', hex: 0x39c2ff, theme: 'dragonfly', emoji: '🪽' },
-  { n: 'Улитка', hex: 0xf58a1f, theme: 'snail', emoji: '🐌' },
-  { n: 'Жук-носорог', hex: 0x7a4a21, theme: 'rhino', emoji: '🦏' },
-  { n: 'Червячок', hex: 0xff77b5, theme: 'worm', emoji: '🪱' },
+  { n: 'Божья коровка', hex: 0xd63b3b, theme: 'ladybug', emoji: '🐞' },   // красный
+  { n: 'Червячок', hex: 0xff77b5, theme: 'worm', emoji: '🪱' },           // розовый
+  { n: 'Улитка', hex: 0xf58a1f, theme: 'snail', emoji: '🐌' },            // оранжевый
+  { n: 'Жук-носорог', hex: 0x7a4a21, theme: 'rhino', emoji: '🦏' },       // коричневый
+  { n: 'Пчела', hex: 0xf5c518, theme: 'bee', emoji: '🐝' },               // жёлтый
+  { n: 'Кузнечик', hex: 0x3fae3a, theme: 'grasshopper', emoji: '🦗' },    // зелёный
+  { n: 'Стрекоза', hex: 0x39c2ff, theme: 'dragonfly', emoji: '🪽' },      // голубой
+  { n: 'Жук-олень', hex: 0x2f6fe0, theme: 'stag', emoji: '🪲' },          // синий
+  { n: 'Мотылёк', hex: 0xa24ed6, theme: 'moth', emoji: '🦋' },            // фиолетовый
 ];
 let selectedColor = PALETTE[0].hex, selectedTheme = PALETTE[0].theme;
 let achievements = new Set(), goldenUnlocked = false, spiderModeUnlocked = false;
