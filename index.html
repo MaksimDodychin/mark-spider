@@ -230,6 +230,11 @@ const PALETTE = [
   { n: 'Кузнечик', hex: 0x3fae3a, theme: 'grasshopper', emoji: '🦗' },
   { n: 'Жук-олень', hex: 0x2f6fe0, theme: 'stag', emoji: '🪲' },
   { n: 'Мотылёк', hex: 0xa24ed6, theme: 'moth', emoji: '🦋' },
+  // новые жучки (заказ Марка 18.07.2026)
+  { n: 'Стрекоза', hex: 0x39c2ff, theme: 'dragonfly', emoji: '🪽' },
+  { n: 'Улитка', hex: 0xf58a1f, theme: 'snail', emoji: '🐌' },
+  { n: 'Жук-носорог', hex: 0x7a4a21, theme: 'rhino', emoji: '🦏' },
+  { n: 'Червячок', hex: 0xff77b5, theme: 'worm', emoji: '🪱' },
 ];
 let selectedColor = PALETTE[0].hex, selectedTheme = PALETTE[0].theme;
 let achievements = new Set(), goldenUnlocked = false, spiderModeUnlocked = false;
@@ -391,6 +396,38 @@ function makeBeetle(bodyColor, isFirefly, theme) {
       const base = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 0.75, 6), hm); base.position.set(ex * 0.24, 0.32, 1.5); base.rotation.set(1.4, 0, ex * 0.3); grp.add(base);
       const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.07, 0.45, 6), hm); tip.position.set(ex * 0.16, 0.42, 1.9); tip.rotation.set(1.2, 0, -ex * 0.9); grp.add(tip);
     }
+  } else if (theme === 'dragonfly') {
+    // голубая стрекоза: длинный хвостик и ДВЕ пары длинных прозрачных крыльев (заказ Марка 18.07)
+    const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.04, 1.5, 8), shell); tail.position.set(0, 0.28, -1.55); tail.rotation.x = Math.PI / 2; grp.add(tail);
+    const tt = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), shell); tt.position.set(0, 0.28, -2.28); grp.add(tt);
+    const wm = new THREE.MeshBasicMaterial({ color: 0xd8f4ff, transparent: true, opacity: .48, side: THREE.DoubleSide });
+    for (const ex of [-1, 1]) for (const [zz, ang] of [[0.3, 0.35], [-0.12, -0.06]]) {
+      const w = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.36), wm);
+      w.position.set(ex * 0.9, 0.52, zz); w.rotation.set(-Math.PI / 2.1, 0, ex * ang); grp.add(w);
+    }
+    for (const ex of [-0.17, 0.17]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 10), new THREE.MeshStandardMaterial({ color: 0x0e5d84, emissive: 0x2bb7ff, emissiveIntensity: .7 })); e.position.set(ex, 0.28, 1.16); grp.add(e); }
+  } else if (theme === 'snail') {
+    // оранжевая улитка: домик-ракушка со спиралькой и рожки с глазками (заказ Марка 18.07)
+    const sm = new THREE.MeshStandardMaterial({ color: 0xc9741b, roughness: .55 });
+    const sh = new THREE.Mesh(new THREE.SphereGeometry(0.72, 16, 14), sm); sh.scale.set(0.82, 1, 1); sh.position.set(0, 0.9, -0.3); grp.add(sh);
+    const spMat = new THREE.MeshStandardMaterial({ color: 0x8a4a10, roughness: .6 });
+    const s1 = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.06, 8, 22), spMat); s1.position.set(0, 0.9, -0.3); s1.rotation.y = Math.PI / 2; grp.add(s1);
+    const s2 = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.055, 8, 16), spMat); s2.position.set(0, 0.98, -0.1); s2.rotation.y = Math.PI / 2; grp.add(s2);
+    for (const ex of [-1, 1]) {
+      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.55, 6), shell); h.position.set(ex * 0.14, 0.6, 1.28); h.rotation.set(-0.45, 0, ex * 0.35); grp.add(h);
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), dark); tip.position.set(ex * 0.24, 0.84, 1.4); grp.add(tip);
+    }
+  } else if (theme === 'rhino') {
+    // коричневый жук-носорог: большой рог с развилкой и горб-панцирь (заказ Марка 18.07)
+    const hm = new THREE.MeshStandardMaterial({ color: 0x35200e, roughness: .45, metalness: .3 });
+    const horn = new THREE.Mesh(new THREE.ConeGeometry(0.14, 1.35, 8), hm); horn.position.set(0, 0.85, 1.25); horn.rotation.x = -0.8; grp.add(horn);
+    for (const ex of [-1, 1]) { const f = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.4, 6), hm); f.position.set(ex * 0.11, 1.38, 1.42); f.rotation.set(-0.6, 0, ex * 0.5); grp.add(f); }
+    const hump = new THREE.Mesh(new THREE.SphereGeometry(0.48, 14, 12), shell); hump.scale.set(0.95, 0.55, 0.95); hump.position.set(0, 0.42, 0.4); grp.add(hump);
+  } else if (theme === 'worm') {
+    // розовый червячок: колечки-сегменты и хвостик из шариков (заказ Марка 18.07)
+    const rm = new THREE.MeshStandardMaterial({ color: 0xd45f95, roughness: .5 });
+    for (const zz of [0.45, -0.05, -0.55]) { const st = new THREE.Mesh(new THREE.SphereGeometry(0.63, 18, 16), rm); st.scale.set(1.03, 0.75, 0.14); st.position.set(0, 0.15, zz); grp.add(st); }
+    for (let i = 1; i <= 3; i++) { const s = new THREE.Mesh(new THREE.SphereGeometry(0.32 - i * 0.06, 12, 10), shell); s.position.set(0, 0.12, -1.05 - i * 0.33); grp.add(s); }
   }
   if (isFirefly) {
     const glow = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 14), new THREE.MeshStandardMaterial({ color: 0x2b2410, emissive: 0xffcf33, emissiveIntensity: 1.4 }));
@@ -1009,7 +1046,8 @@ function buildClearing(ch) {
   for (let i = 0; i < 44; i++) { const bl = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.9, 4), new THREE.MeshStandardMaterial({ color: dark ? 0x2c5a26 : 0x3f9a35 })); bl.position.set((i * 7 % 30) - 15, 0.45, 24 - i * 1.05); clearingGroup.add(bl); }
   if (ch === 1) {
     // Глава 2 — друзья-насекомые встречают
-    const tc = [{ c: 0xd63b3b, t: 'ladybug' }, { c: 0xf5c518, t: 'bee' }, { c: 0x3fae3a, t: 'grasshopper' }, { c: 0xa24ed6, t: 'moth' }];
+    const tc = [{ c: 0xd63b3b, t: 'ladybug' }, { c: 0xf5c518, t: 'bee' }, { c: 0x3fae3a, t: 'grasshopper' }, { c: 0xa24ed6, t: 'moth' },
+      { c: 0x39c2ff, t: 'dragonfly' }, { c: 0xf58a1f, t: 'snail' }, { c: 0x7a4a21, t: 'rhino' }, { c: 0xff77b5, t: 'worm' }].sort(() => Math.random() - 0.5); // новые жучки тоже встречают!
     for (let i = 0; i < 6; i++) { const k = tc[i % tc.length]; const b = makeBeetle(k.c, false, k.t); const x = ((i % 2) ? 1 : -1) * (2 + i * 0.9), z = -3 - i * 1.4; b.position.set(x, 0, z); b.userData.x = x; b.userData.z = z; b.userData.y = 0; b.userData.vy = 0; b.userData.hopT = Math.random(); clearFriends.push(b); clearingGroup.add(b); }
     const sp = makeSpider(); sp.position.set(0, 0, -18); sp.userData.x = 0; sp.userData.z = -18; clearSpiders.push(sp); clearingGroup.add(sp);
   } else if (ch === 2) {
