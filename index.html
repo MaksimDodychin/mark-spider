@@ -111,13 +111,17 @@
 </style>
 
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" type="image/png" href="icon-192.png">
-  <meta name="theme-color" content="#c81414">
-  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+  <link rel="shortcut icon" type="image/png" href="icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Паучий Лабиринт">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
+  <meta name="msapplication-TileImage" content="icon-192.png">
+  <meta name="msapplication-TileColor" content="#c81414">
+  <script>window.__APP_VER = "20c03074a3";</script>
 </head>
 <body>
 <div id="app"></div>
@@ -218,7 +222,7 @@ const CHAPTERS = [
 ];
 let currentChapter = 0;
 
-const CELL = 6, WALL_H = 5.0, PLAYER_R = 0.95;         // широкие коридоры, стены пониже (видно себя)
+const CELL = 6, WALL_H = 7.5, PLAYER_R = 0.95;         // стены ВЫСОКИЕ — камера теперь низко, за спиной жучка (Марк 05.09)
 const SPEED = 7.2, BOT_SPEED = 6.4, TURN_SPEED = 3.3;  // поворот пошустрее
 const DETECT = 15, DANGER = 16, CATCH = 1.7, FLY_REACH = 6.5;
 const JUMP_V = 8.0, GRAV = 22;
@@ -284,6 +288,22 @@ let doorMap = new Map();
 function isWallCell(r, c) { if (!(r >= 0 && r < ROWS && c >= 0 && c < COLS)) return true; return MAZE[r][c] === '#'; }
 function isBlocked(r, c) { if (isWallCell(r, c)) return true; const d = doorMap.get(r * COLS + c); if (!d) return false; if (d.type === 'timer') return gameTime >= (d.openUntil || 0); if (d.type === 'insect') return selectedTheme !== d.reqTheme; return !d.open; }
 function cellOf(x, z) { return { c: Math.floor(x / CELL + 0.5), r: Math.floor(z / CELL + 0.5) }; }
+// 👁 прямая видимость: идём по линии шажками и смотрим, не закрывает ли стена
+function видитЛи(x1, z1, x2, z2) {
+  const d = Math.hypot(x2 - x1, z2 - z1), шаг = CELL * 0.3;
+  for (let s = шаг; s < d; s += шаг) {
+    const t = s / d, cc = cellOf(x1 + (x2 - x1) * t, z1 + (z2 - z1) * t);
+    if (isWallCell(cc.r, cc.c)) return false;
+  }
+  return true;
+}
+function spiderSpotted() {                          // 🕷 «ЗАМЕТИЛ!» — короткий испуг
+  thump(0.3);
+  if (actx) { const o = actx.createOscillator(), g = actx.createGain();
+    o.type = 'sawtooth'; o.frequency.value = 340; o.frequency.linearRampToValueAtTime(180, actx.currentTime + 0.3);
+    g.gain.value = 0.12; g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 0.35);
+    o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + 0.4); }
+}
 function cellCenter(r, c) { return new THREE.Vector3(c * CELL, 0, r * CELL); }
 function isFree(x, z) {
   const rr = PLAYER_R;
@@ -765,7 +785,8 @@ function buildChapter(idx) {
   // паук
   spider = makeSpider(); worldGroup.add(spider);
   const spiderCell = pickSpread(floorCells, 1, [startCell, exitCell], Math.floor((cfg.W + cfg.H) * 0.5))[0] || exitCell;
-  const spc = cellCenter(spiderCell.r, spiderCell.c); spider.userData.x = spc.x; spider.userData.z = spc.z; spider.userData.wander = null; spiderStartPos.copy(spc);
+  spider.scale.setScalar(1.45);                     // 🕷 мутант-переросток (просьба Марка)
+  const spc = cellCenter(spiderCell.r, spiderCell.c); spider.userData.x = spc.x; spider.userData.z = spc.z; spider.userData.wander = null; spider.userData.seen = null; spiderStartPos.copy(spc);
 
   // боты
   const botColors = [0xd63b3b, 0x3b7cd6, 0xc94ed6, 0xe0902a, 0x2ec6b0];
@@ -892,7 +913,9 @@ function movePlayer(dt, canStand) {
   player.rotation.y = ph;
   animateLegs(player, Math.abs(throttle) > 0.1 || Math.abs(turn) > 0.1, performance.now() * 0.001);
 }
-function updateCamera(dt) { const ph = player.userData.heading, fx = Math.sin(ph), fz = Math.cos(ph); const cd = 8 + dangerLevel * 3, ch = 11 + dangerLevel * 1.5; camera.position.lerp(new THREE.Vector3(player.userData.x - fx * cd, ch, player.userData.z - fz * cd), 1 - Math.pow(0.001, dt)); camera.lookAt(player.userData.x + fx * 3, 1.3 + player.userData.y * 0.5, player.userData.z + fz * 3); }
+// 📷 камера НИЗКО, из-за спины жучка (просьба Марка): стены нависают, чувствуешь себя маленьким.
+// При опасности чуть отъезжает и приподнимается, чтобы видеть паука.
+function updateCamera(dt) { const ph = player.userData.heading, fx = Math.sin(ph), fz = Math.cos(ph); const cd = 5.2 + dangerLevel * 2.2, ch = 2.7 + dangerLevel * 2.0; camera.position.lerp(new THREE.Vector3(player.userData.x - fx * cd, ch, player.userData.z - fz * cd), 1 - Math.pow(0.001, dt)); camera.lookAt(player.userData.x + fx * 6, 1.5 + player.userData.y * 0.5, player.userData.z + fz * 6); }
 function lobbyCanStand(x, z) { return x > -LOBBY_R + 0.9 && x < LOBBY_R - 0.9 && z > -LOBBY_R + 0.9 && z < LOBBY_R - 0.9; }
 
 // ---- Лобби: квадратная комната с дверями глав ----
@@ -905,6 +928,7 @@ function buildLobby() {
   for (const [x, z, w, d] of [[0, -R, R * 2, 0.5], [0, R, R * 2, 0.5], [-R, 0, 0.5, R * 2], [R, 0, 0.5, R * 2]]) { const wall = new THREE.Mesh(new THREE.BoxGeometry(w, wh, d), wmat); wall.position.set(x, wh / 2, z); lobbyGroup.add(wall); }
   const ll = new THREE.PointLight(0xffd9a0, 1.3, 60, 2); ll.position.set(0, 6, 2); lobbyGroup.add(ll);
   const bl = new THREE.PointLight(0x88aaff, 0.6, 60, 2); bl.position.set(0, 6, -8); lobbyGroup.add(bl);
+  lobbyGroup.add(new THREE.HemisphereLight(0x8a90c8, 0x1a1524, 0.5));   // мягкий свет для низкой камеры
   const n = CHAPTERS.length;
   for (let i = 0; i < n; i++) {
     const x = (i - (n - 1) / 2) * 6, z = -R + 0.7, open = i < unlockedChapters;
@@ -926,7 +950,8 @@ function buildLobby() {
 function enterLobby() {
   buildLobby(); showLobby();
   scene.background = DARK_BG; scene.fog = DARK_FOG;
-  player.userData.x = 0; player.userData.z = 8; player.userData.heading = Math.PI; player.userData.y = 0; player.userData.vy = 0; player.userData.grounded = true;
+  // z=3, а не 8: низкая камера за спиной (−5.2) иначе выезжает СКВОЗЬ стену лобби (R=12) → чёрный экран
+  player.userData.x = 0; player.userData.z = 3; player.userData.heading = Math.PI; player.userData.y = 0; player.userData.vy = 0; player.userData.grounded = true;
   player.position.set(0, 0, 8);
   if (player.userData.light) { player.userData.light.intensity = 2.8; player.userData.light.color.setRGB(1, 0.82, 0.30); }
   if (player.userData.glowMesh) { player.userData.glowMesh.material.emissive.setRGB(1, 0.82, 0.20); player.userData.glowMesh.material.emissiveIntensity = 1.1; }
@@ -952,7 +977,7 @@ function softResetItems() {
 }
 function reenterChapter() {
   player.userData.x = playerStartPos.x; player.userData.z = playerStartPos.z; player.userData.heading = 0; player.userData.y = 0; player.userData.vy = 0; player.userData.grounded = true;
-  spider.userData.x = spiderStartPos.x; spider.userData.z = spiderStartPos.z; spider.userData.wander = null;
+  spider.userData.x = spiderStartPos.x; spider.userData.z = spiderStartPos.z; spider.userData.wander = null; spider.userData.seen = null;
   softResetItems(); graceT = 2.2; gameTime = 0; state = 'play';
   document.getElementById('flyCount').textContent = Math.min(flyCollected, flyTotal);
   document.getElementById('chapter').textContent = 'Глава ' + (currentChapter + 1);
@@ -1042,23 +1067,24 @@ function buildClearing(ch) {
   const sun = new THREE.DirectionalLight(0xffffff, dark ? 0.35 : 1.1); sun.position.set(20, 40, 20); clearingGroup.add(sun);
   clearingGroup.add(new THREE.HemisphereLight(dark ? 0x3a4258 : 0xbfe4ff, dark ? 0x201c14 : 0x4a7a2a, dark ? 0.5 : 0.85));
   const fcol = [0xff5aa0, 0xff8a3b, 0xa24ed6, 0xffe14d, 0xff4d4d, 0x6fd0ff];
-  for (let i = 0; i < 30; i++) { const side = i % 2 ? 1 : -1; const x = side * (4 + (i * 1.7) % 10); const z = 22 - i * 1.25; const f = makeFlower(fcol[i % fcol.length]); f.position.set(x, 0, z); const s = 1 + (i % 3) * 0.35; f.scale.set(s, s, s); clearingGroup.add(f); }
-  for (let i = 0; i < 44; i++) { const bl = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.9, 4), new THREE.MeshStandardMaterial({ color: dark ? 0x2c5a26 : 0x3f9a35 })); bl.position.set((i * 7 % 30) - 15, 0.45, 24 - i * 1.05); clearingGroup.add(bl); }
+  // 🌼 ЦВЕТЫ-ГИГАНТЫ (просьба Марка): ты — крошечный жучок на огромной полянке
+  for (let i = 0; i < 38; i++) { const side = i % 2 ? 1 : -1; const x = side * (4 + (i * 1.9) % 13); const z = 24 - i * 1.35; const f = makeFlower(fcol[i % fcol.length]); f.position.set(x, 0, z); const s = 2.6 + (i % 4) * 0.8; f.scale.set(s, s, s); clearingGroup.add(f); }
+  for (let i = 0; i < 60; i++) { const bl = new THREE.Mesh(new THREE.ConeGeometry(0.22, 2.4 + (i % 3) * 0.8, 4), new THREE.MeshStandardMaterial({ color: dark ? 0x2c5a26 : 0x3f9a35 })); bl.position.set((i * 7 % 34) - 17, (2.4 + (i % 3) * 0.8) / 2, 26 - i * 0.85); clearingGroup.add(bl); }
   if (ch === 1) {
     // Глава 2 — друзья-насекомые встречают
     const tc = [{ c: 0xd63b3b, t: 'ladybug' }, { c: 0xf5c518, t: 'bee' }, { c: 0x3fae3a, t: 'grasshopper' }, { c: 0xa24ed6, t: 'moth' },
       { c: 0x39c2ff, t: 'dragonfly' }, { c: 0xf58a1f, t: 'snail' }, { c: 0x7a4a21, t: 'rhino' }, { c: 0xff77b5, t: 'worm' }].sort(() => Math.random() - 0.5); // новые жучки тоже встречают!
     for (let i = 0; i < 6; i++) { const k = tc[i % tc.length]; const b = makeBeetle(k.c, false, k.t); const x = ((i % 2) ? 1 : -1) * (2 + i * 0.9), z = -3 - i * 1.4; b.position.set(x, 0, z); b.userData.x = x; b.userData.z = z; b.userData.y = 0; b.userData.vy = 0; b.userData.hopT = Math.random(); clearFriends.push(b); clearingGroup.add(b); }
-    const sp = makeSpider(); sp.position.set(0, 0, -18); sp.userData.x = 0; sp.userData.z = -18; clearSpiders.push(sp); clearingGroup.add(sp);
+    const sp = makeSpider(); sp.scale.setScalar(2.0); sp.position.set(0, 0, -18); sp.userData.x = 0; sp.userData.z = -18; clearSpiders.push(sp); clearingGroup.add(sp);
   } else if (ch === 2) {
     // Глава 3 — игрока окружают пауки, но их съедает БОГОМОЛ
     const ring = 5.5;
-    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; const sp = makeSpider(); const x = Math.cos(a) * ring, z = -8 + Math.sin(a) * ring; sp.position.set(x, 0, z); sp.userData.x = x; sp.userData.z = z; sp.userData.eaten = false; clearSpiders.push(sp); clearingGroup.add(sp); }
-    clearMantis = makeMantis(); clearMantis.position.set(15, 0, -8); clearMantis.userData.x = 15; clearMantis.userData.z = -8; clearingGroup.add(clearMantis);
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; const sp = makeSpider(); sp.scale.setScalar(1.8); const x = Math.cos(a) * ring, z = -8 + Math.sin(a) * ring; sp.position.set(x, 0, z); sp.userData.x = x; sp.userData.z = z; sp.userData.eaten = false; clearSpiders.push(sp); clearingGroup.add(sp); }
+    clearMantis = makeMantis(); clearMantis.scale.setScalar(1.7); clearMantis.position.set(15, 0, -8); clearMantis.userData.x = 15; clearMantis.userData.z = -8; clearingGroup.add(clearMantis);
     clearMode = 'mantis';
   } else {
     // Глава 1 — один паук впереди
-    const sp = makeSpider(); sp.position.set(0, 0, -10); sp.userData.x = 0; sp.userData.z = -10; clearSpiders.push(sp); clearingGroup.add(sp);
+    const sp = makeSpider(); sp.scale.setScalar(2.0); sp.position.set(0, 0, -10); sp.userData.x = 0; sp.userData.z = -10; clearSpiders.push(sp); clearingGroup.add(sp);
   }
 }
 function enterClearing3d() {
@@ -1199,17 +1225,30 @@ function tick() {
       b.position.set(b.userData.x, b.userData.y, b.userData.z); b.rotation.y = b.userData.heading; animateLegs(b, bm, now + b.id);
     }
 
-    // паук: ближайший жучок в радиусе (если не пауза старта), иначе патруль
+    // 🕷 паук-по-зрению (просьба Марка 05.09): пока НЕ ВИДИТ — спокойно патрулирует лабиринт;
+    // ЗАМЕТИЛ (прямая видимость, стены закрывают) — БЕЖИТ на тебя. Потерял из виду —
+    // добегает до места, где видел в последний раз, и снова патрулирует.
     let target = null, tdist = DETECT;
     if (graceT <= 0 && spiderChase) {
       const pd = dist(spider.userData.x, spider.userData.z, px, pz);
-      if (pd < tdist && !inSafeZone(px, pz)) { tdist = pd; target = { x: px, z: pz }; }
-      for (const b of bots) { const bd2 = dist(spider.userData.x, spider.userData.z, b.userData.x, b.userData.z); if (bd2 < tdist) { tdist = bd2; target = { x: b.userData.x, z: b.userData.z }; } }
+      if (pd < tdist && !inSafeZone(px, pz) && видитЛи(spider.userData.x, spider.userData.z, px, pz)) { tdist = pd; target = { x: px, z: pz }; }
+      for (const b of bots) { const bd2 = dist(spider.userData.x, spider.userData.z, b.userData.x, b.userData.z); if (bd2 < tdist && видитЛи(spider.userData.x, spider.userData.z, b.userData.x, b.userData.z)) { tdist = bd2; target = { x: b.userData.x, z: b.userData.z }; } }
+    }
+    if (target) {                                     // увидел — запоминаем и злимся
+      if (!spider.userData.seen) { spiderSpotted(); } // первый раз заметил — рывок и звук
+      spider.userData.seen = { x: target.x, z: target.z, t: 3.5 };
+    } else if (spider.userData.seen) {                // цели не видно — бежим к последнему месту
+      spider.userData.seen.t -= dt;
+      if (spider.userData.seen.t <= 0 ||
+          dist(spider.userData.x, spider.userData.z, spider.userData.seen.x, spider.userData.seen.z) < 2)
+        spider.userData.seen = null;                  // добежал/забыл — снова патруль
+      else target = { x: spider.userData.seen.x, z: spider.userData.seen.z };
     }
     let sgoal;
     if (target) { const tc = cellOf(target.x, target.z); sgoal = stepTarget(spider, tc.r, tc.c); }
     else { if (!spider.userData.wander || dist(spider.userData.x, spider.userData.z, spider.userData.wander.x, spider.userData.wander.z) < 1.5) { const rc = randFloorCell(); spider.userData.wander = cellCenter(rc.r, rc.c); spider.userData.wtarget = rc; } sgoal = stepTarget(spider, spider.userData.wtarget.r, spider.userData.wtarget.c); }
-    const smoved = moveEntity(spider, sgoal.x - spider.userData.x, sgoal.z - spider.userData.z, spiderSpeedCur, dt);
+    // на патруле паук идёт спокойно, на погоне — БЕЖИТ
+    const smoved = moveEntity(spider, sgoal.x - spider.userData.x, sgoal.z - spider.userData.z, spiderSpeedCur * (target ? 1.15 : 0.55), dt);
     if (!smoved && !target) { spider.userData.stuck = (spider.userData.stuck || 0) + dt; if (spider.userData.stuck > 0.4) { const rc = randFloorCell(); spider.userData.wander = cellCenter(rc.r, rc.c); spider.userData.wtarget = rc; spider.userData.stuck = 0; } } else spider.userData.stuck = 0;
     spider.position.set(spider.userData.x, 0, spider.userData.z); spider.rotation.y = spider.userData.heading; animateLegs(spider, smoved, now * 1.4);
     for (const b of bots) { if (dist(spider.userData.x, spider.userData.z, b.userData.x, b.userData.z) < CATCH) { const rc = randFloorCell(); const p = cellCenter(rc.r, rc.c); b.userData.x = p.x; b.userData.z = p.z; b.userData.wander = null; } }
@@ -1429,7 +1468,61 @@ addEventListener('resize', () => { camera.aspect = window.innerWidth / window.in
 </script>
 
 <script>
-if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{})); }
+// Игра стартует МГНОВЕННО из памяти телефона и работает без интернета.
+// Если интернет есть — проверяем крошечный version.json и обновляемся сами.
+(function () {
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(function(){}));
+  }
+  function баннер(текст) {
+    var d = document.getElementById('updBanner');
+    if (!d) { d = document.createElement('div'); d.id = 'updBanner';
+      d.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:99999;' +
+        'background:#0b1220ee;color:#7dd3fc;font:900 15px system-ui;padding:10px 18px;border-radius:14px;' +
+        'border:2px solid #7dd3fc55;box-shadow:0 8px 24px #0009';
+      document.body.appendChild(d); }
+    d.textContent = текст;
+    return d;
+  }
+  async function applyUpdate() {
+    баннер('🔄 Обновляю игру…');
+    try {
+      const ks = await caches.keys();
+      await Promise.all(ks.map(function (k) { return caches.delete(k); }));
+      if ('serviceWorker' in navigator) {
+        const rs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(rs.map(function (r) { return r.unregister(); }));
+      }
+    } catch (_) {}
+    // ⚠️ Простой location.reload() может взять СТАРЫЙ html из кэша браузера,
+    // и обновление «не приходит» (жалоба Марка 23.08). Перезагружаемся по новому адресу.
+    setTimeout(function () {
+      location.replace(location.pathname + '?v=' + Date.now());
+    }, 400);
+  }
+  window.__forceUpdate = applyUpdate;
+  async function checkVersion(показать) {
+    try {
+      const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) throw 0;
+      const j = await r.json();
+      if (!j || !j.v) throw 0;
+      if (j.v === window.__APP_VER) { if (показать) { const d = баннер('✅ У тебя самая свежая версия');
+          setTimeout(function(){ d.remove(); }, 2500); } return false; }
+      if (window.__onUpdate) window.__onUpdate(applyUpdate); else applyUpdate();
+      return true;
+    } catch (_) {
+      if (показать) { const d = баннер('📴 Нет интернета — обновить не выйдет');
+        setTimeout(function(){ d.remove(); }, 2500); }
+      return false;
+    }
+  }
+  window.__checkUpdate = function () { return checkVersion(true); };
+  window.addEventListener('load', function () { setTimeout(checkVersion, 300); setTimeout(checkVersion, 3000); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) checkVersion(); });
+  addEventListener('online', checkVersion);
+  setInterval(checkVersion, 60 * 1000);
+})();
 </script>
 </body>
 </html>

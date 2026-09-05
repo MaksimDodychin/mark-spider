@@ -1,7 +1,7 @@
 {
   "name": "Паучий Лабиринт",
   "short_name": "Паучий Лабиринт",
-  "description": "Собери мух, убеги от паука! 🕷️🪰",
+  "description": "Жучок-светлячок в лабиринте с гигантским пауком: мухи, ключи, три главы и режим за паука. 🕷️",
   "lang": "ru",
   "start_url": "./index.html",
   "scope": "./",
@@ -10,7 +10,7 @@
     "fullscreen",
     "standalone"
   ],
-  "orientation": "any",
+  "orientation": "landscape",
   "background_color": "#0a0a0f",
   "theme_color": "#c81414",
   "icons": [
