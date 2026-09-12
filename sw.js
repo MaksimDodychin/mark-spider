@@ -1,7 +1,7 @@
-// service worker «Паучий лабиринт» — версия по содержимому: 20c03074a3
+// service worker «Паучий лабиринт» — версия по содержимому: 814377278f
 // Игра всегда отдаётся МГНОВЕННО из памяти телефона (и работает без интернета).
 // Новая версия скачивается фоном при следующем заходе и применяется сама.
-const CACHE = 'spider-20c03074a3';
+const CACHE = 'spider-814377278f';
 const ASSETS = ['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-512-maskable.png','./apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
