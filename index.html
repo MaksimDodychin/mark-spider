@@ -28,27 +28,28 @@
 
   #stickZone { display: none; }
   #dpad { position: fixed; left: 22px; bottom: 30px; z-index: 6; display: grid; grid-template-columns: repeat(3, 62px); grid-template-rows: repeat(3, 62px); gap: 6px; }
-  /* ═══ 👥 ВДВОЁМ (заказ Марка 12.09.2026) ═══ сверху 1-й жучок, снизу 2-й */
-  body.coop #dpad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 46px); gap: 5px; left: 14px; bottom: calc(50% + 10px); }
+  /* ═══ 👥 ВДВОЁМ ═══ ПРОСЬБА МАРКА 19.09.2026: делим экран ВЕРТИКАЛЬНО —
+     1-й игрок СЛЕВА, 2-й СПРАВА (раньше было сверху/снизу) */
+  body.coop #dpad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 46px); gap: 5px; left: 14px; bottom: 14px; }
   body.coop .dbtn { font-size: 20px; }
-  #dpad2 { position: fixed; left: 14px; bottom: 14px; z-index: 6; display: none;
+  #dpad2 { position: fixed; left: calc(50% + 14px); bottom: 14px; z-index: 6; display: none;
     grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 46px); gap: 5px; }
   body.coop #dpad2 { display: grid; }
   body.coop #pushBtn { display: none; }
-  body.coop #jumpBtn { width: 66px; height: 66px; font-size: 22px; right: 16px; bottom: calc(50% + 10px); }
+  body.coop #jumpBtn { width: 66px; height: 66px; font-size: 22px; right: calc(50% + 16px); bottom: 16px; }
   #jumpBtn2 { position: fixed; right: 16px; bottom: 16px; width: 66px; height: 66px; border-radius: 50%; z-index: 6;
     background: radial-gradient(circle at 35% 30%, #ffe27b, #d09a16); box-shadow: 0 0 18px #d09a1699;
     border: 2px solid #ffffff66; display: none; align-items: center; justify-content: center;
     font-size: 22px; user-select: none; flex-direction: column; line-height: 1; }
   #jumpBtn2 small { font-size: 9px; opacity: .9; }
   body.coop #jumpBtn2 { display: flex; }
-  body.coop #bagBtn { bottom: calc(50% + 12px); right: 94px; width: 60px; height: 60px; font-size: 21px; }
-  body.coop #changeBtn { bottom: calc(50% + 12px); right: 166px; width: 60px; height: 60px; font-size: 20px; }
+  body.coop #bagBtn { bottom: 90px; right: calc(50% + 16px); width: 60px; height: 60px; font-size: 21px; }
+  body.coop #changeBtn { bottom: 158px; right: calc(50% + 16px); width: 60px; height: 60px; font-size: 20px; }
   #dpad2 .dbtn { font-size: 20px; }
-  #splitLine { position: fixed; left: 0; right: 0; top: 50%; height: 4px; margin-top: -2px; z-index: 7;
-    background: linear-gradient(90deg,#0000,#ffffffcc,#0000); display: none; pointer-events: none; }
+  #splitLine { position: fixed; top: 0; bottom: 0; left: 50%; width: 4px; margin-left: -2px; z-index: 7;
+    background: linear-gradient(180deg,#0000,#ffffffcc,#0000); display: none; pointer-events: none; }
   body.coop #splitLine { display: block; }
-  #coopTag { position: fixed; left: 50%; transform: translateX(-50%); top: calc(50% + 10px); z-index: 7; display: none;
+  #coopTag { position: fixed; left: 75%; transform: translateX(-50%); top: 10px; z-index: 7; display: none;
     background: #120a1ecc; border: 2px solid #ffd34d88; border-radius: 12px; padding: 4px 10px;
     font-weight: 900; font-size: 14px; }
   body.coop #coopTag { display: block; }
@@ -147,7 +148,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#c81414">
-  <script>window.__APP_VER = "8524784374";</script>
+  <script>window.__APP_VER = "092c4f2fa0";</script>
 </head>
 <body>
 <div id="app"></div>
@@ -1192,12 +1193,13 @@ function ставимВторого() {
 const splitSize = new THREE.Vector2();
 function renderSplit() {
   renderer.getSize(splitSize);
-  const w = Math.floor(splitSize.x), h = Math.floor(splitSize.y), hh = Math.floor(h / 2);
+  // 👥 левая половина — 1-й игрок, правая — 2-й (просьба Марка 19.09.2026)
+  const w = Math.floor(splitSize.x), h = Math.floor(splitSize.y), hw = Math.floor(w / 2);
   renderer.setScissorTest(true);
-  renderer.setViewport(0, hh, w, h - hh); renderer.setScissor(0, hh, w, h - hh);
-  camera.aspect = w / (h - hh); camera.updateProjectionMatrix(); renderer.render(scene, camera);
-  renderer.setViewport(0, 0, w, hh); renderer.setScissor(0, 0, w, hh);
-  camera2.aspect = w / hh; camera2.updateProjectionMatrix(); renderer.render(scene, camera2);
+  renderer.setViewport(0, 0, hw, h); renderer.setScissor(0, 0, hw, h);
+  camera.aspect = hw / h; camera.updateProjectionMatrix(); renderer.render(scene, camera);
+  renderer.setViewport(hw, 0, w - hw, h); renderer.setScissor(hw, 0, w - hw, h);
+  camera2.aspect = (w - hw) / h; camera2.updateProjectionMatrix(); renderer.render(scene, camera2);
   renderer.setScissorTest(false); renderer.setViewport(0, 0, w, h);
 }
 function drawFrame() {
